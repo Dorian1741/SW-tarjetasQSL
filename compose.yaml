@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: qsl_nexus
+      POSTGRES_USER: qsl_nexus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qsl_nexus -d qsl_nexus"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+volumes:
+  postgres_data:

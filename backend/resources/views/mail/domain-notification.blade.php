@@ -1,0 +1,1 @@
+<!doctype html><html lang="es"><body><h1>QSL Nexus</h1><p>{{ $payload['message'] }}</p><p>Consulta el estado actual en tu cuenta.</p><a href="{{ rtrim(config('qsl.frontend_url'), '/').$payload['path'] }}">Abrir QSL Nexus</a></body></html>

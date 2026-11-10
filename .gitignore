@@ -1,0 +1,15 @@
+**/node_modules/
+**/vendor/
+**/.env
+**/.env.*
+!**/.env.example
+**/dist/
+**/.phpunit.result.cache
+**/.phpunit.cache/
+.DS_Store
+
+# Instancia PostgreSQL local y sus registros
+/.local/
+
+/frontend/test-results/
+/frontend/playwright-report/

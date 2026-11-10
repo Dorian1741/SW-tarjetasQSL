@@ -102,7 +102,7 @@ Crea `scenario-a@example.test`, `scenario-b@example.test` y `scenario-admin@exam
 
 ## Recorrido funcional
 
-1. Ingresar o crear cuenta en `/account`; verificar el correo y activar TOTP.
+1. Ingresar o crear cuenta con indicativo, correo y contraseña en `/account`; verificar el correo y activar TOTP.
 2. Reclamar un indicativo; otro usuario administrador debe revisar su evidencia y aprobarlo.
 3. Abrir la estación (`/app`) y registrar QSO con un indicativo verificado, frecuencia en **kHz como texto decimal** y hora UTC.
 4. La otra estación registra el contacto recíproco. Si solo hay un candidato compatible en ambos sentidos, aparece una coincidencia pendiente.
@@ -134,7 +134,7 @@ Estas pruebas recrean el esquema y nunca deben apuntar a una base con datos real
 
 Playwright usa Chrome instalado en `/usr/bin/google-chrome` o el ejecutable indicado por `CHROME_BINARY`. Arranca servidores aislados en puertos 18000 y 15173 y recrea únicamente `.local/qsl-browser-test.sqlite`. Sus imágenes se guardan en `.local/browser-files`; no usa la base configurada en tu `.env`. Verifica el recorrido de dos estaciones, administración, menú móvil y accesibilidad con Axe. Capturas y trazas quedan en `frontend/test-results/`.
 
-Verificación realizada: 56 pruebas de backend aprobadas en PostgreSQL, 3 recorridos de navegador aprobados y build del frontend aprobado. Axe no encontró infracciones en las páginas evaluadas; esto no sustituye una auditoría de accesibilidad exhaustiva.
+Verificación realizada: 76 pruebas de backend aprobadas en PostgreSQL, 5 recorridos de navegador aprobados y build del frontend aprobado. Axe no encontró infracciones en las páginas evaluadas; esto no sustituye una auditoría de accesibilidad exhaustiva.
 
 ## Correo y archivos
 
@@ -145,3 +145,11 @@ Los fallos de cola se consultan con `php artisan queue:failed`; reintentar un tr
 Los PNG se guardan en Laravel Storage privado y se descargan solo mediante rutas autorizadas. `IMAGEMAGICK_BINARY` permite indicar la ruta del ejecutable si no está en PATH. Configurar `FRONTEND_URL` con la dirección accesible por quienes escanearán el QR **antes de emitir** tarjetas; `localhost` solo sirve en el mismo equipo. La verificación pública muestra datos de radio del contacto y nunca nombres, correos, notas ni rutas internas.
 
 No ejecutar `migrate:fresh` en una base con datos que se quieran conservar. La migración operativa conserva historial de reservas liberadas y no ofrece rollback destructivo; utilizar nuevas migraciones para corregirla. Los datos de la instancia nativa persisten en `.local/postgres`.
+
+## Directorio internacional y perfiles sociales
+
+Nuevo módulo en `/directory` y `/app/operator-profile`, con páginas públicas `/operators/{indicativo}`. El registro exige un indicativo y lo reserva pendiente de revisión. Los perfiles y su historial QSL empiezan privados; solo se publican por decisión del usuario y tras verificar titularidad.
+
+QRZ XML y HamQTH v2 requieren habilitar sus credenciales **solo en el backend**. Sin configuración, la búsqueda informa proveedor no disponible. Se comprobaron los adaptadores con respuestas controladas; no se realizaron consultas autenticadas reales sin credenciales. No se importan nombres, correos, fotos ni biografías externas.
+
+Aplicar la nueva migración con `cd backend && php artisan migrate`, sin recrear la base. Las cuentas anteriores se conservan. Consulta [configuración, API, privacidad y pruebas del módulo](docs/callbook.md).

@@ -126,13 +126,15 @@ export function Pagination({
   page,
   last,
   change,
+  label = 'Paginación',
 }: {
+  label?: string
   page: number
   last: number
   change: (page: number) => void
 }) {
   return (
-    <nav aria-label="Paginación" className="mt-6 flex flex-wrap items-center justify-between gap-4">
+    <nav aria-label={label} className="mt-6 flex flex-wrap items-center justify-between gap-4">
       <button className={secondary} disabled={page <= 1} onClick={() => change(page - 1)}>
         Anterior
       </button>

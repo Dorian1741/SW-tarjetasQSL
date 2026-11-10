@@ -17,3 +17,7 @@ La conexión PostgreSQL fija UTC independientemente de la zona del servidor. Los
 Los borrados de dominio se restringen para mantener trazabilidad. Retirar un QSO cambia su estado; disputar revoca la confirmación y las tarjetas. Liberar un indicativo requiere rechazo previo y ausencia de QSO activos. El historial permanece unido al antiguo propietario.
 
 Las migraciones existentes no se reescribieron para el nuevo dominio. La migración operativa no permite rollback destructivo: después de liberar reservas puede existir historial normalizado duplicado, por lo que restaurar la antigua unicidad perdería información. Aplicar una migración correctiva hacia adelante.
+
+## Extensión de directorio
+
+`operator_profiles` mantiene un perfil por usuario y una FK compuesta que vincula su indicativo al mismo propietario; la publicación y el historial son optativos. `operator_follows` impide duplicar una relación seguidor/seguido. `operator_posts` conserva exclusivamente contenido local aportado por el autor. `ownership_requests` registra evidencia privada y decisión; un índice parcial impide dos solicitudes pendientes para el mismo indicativo. Los resultados de proveedores externos no tienen tabla de persistencia. Ver [callbook.md](callbook.md).

@@ -142,3 +142,87 @@ test('administrador revisa un indicativo y la navegación privada funciona en m�
     await adminContext.close().catch(() => {})
   }
 })
+test('perfil social publica solo texto propio y permite seguir sin exponer correo ni historial privado', async ({
+  browser,
+}) => {
+  const ownerContext = await browser.newContext({ baseURL: 'http://localhost:15173' })
+  const followerContext = await browser.newContext({ baseURL: 'http://localhost:15173' })
+  const guestContext = await browser.newContext({ baseURL: 'http://localhost:15173' })
+  const owner = await ownerContext.newPage()
+  const follower = await followerContext.newPage()
+  const guest = await guestContext.newPage()
+  try {
+    await login(owner, 'scenario-a@example.test')
+    await owner.goto('/app/operator-profile')
+    await expect(owner.getByRole('heading', { name: 'Mi perfil social' })).toBeVisible()
+    await owner
+      .getByLabel('Biografía', { exact: true })
+      .fill('Biografía elegida por mí. <script>Texto literal</script>')
+    await owner.getByLabel('País opcional (código de dos letras)', { exact: true }).fill('EC')
+    await owner
+      .getByRole('checkbox', {
+        name: 'Publicar mi perfil (requiere titularidad verificada)',
+        exact: true,
+      })
+      .check()
+    await owner.getByRole('button', { name: 'Guardar perfil social', exact: true }).click()
+    await expect(owner.getByText('Perfil guardado.', { exact: true })).toBeVisible()
+    await owner
+      .getByLabel('Nueva publicación', { exact: true })
+      .fill('Publicación nativa de QSL Nexus.')
+    await owner.getByRole('button', { name: 'Publicar', exact: true }).click()
+    await expect(owner.getByText('Publicación creada.', { exact: true })).toBeVisible()
+    await guest.goto('/operators/TEST0FULLA')
+    await expect(guest.getByRole('heading', { name: 'TEST0FULLA', exact: true })).toBeVisible()
+    await expect(
+      guest.getByText('Biografía elegida por mí. <script>Texto literal</script>', { exact: true }),
+    ).toBeVisible()
+    await expect(guest.getByText('Publicación nativa de QSL Nexus.', { exact: true })).toBeVisible()
+    await expect(guest.getByText('scenario-a@example.test', { exact: true })).toHaveCount(0)
+    expect((await guest.request.get('/api/v1/public/operator-history/TEST0FULLA')).status()).toBe(
+      404,
+    )
+    expect((await new AxeBuilder({ page: guest }).analyze()).violations).toEqual([])
+    await owner
+      .getByRole('checkbox', {
+        name: 'Compartir públicamente mi historial de tarjetas QSL emitidas',
+        exact: true,
+      })
+      .check()
+    const saved = owner.waitForResponse(
+      (r) => r.url().endsWith('/api/v1/operator-profile') && r.request().method() === 'PUT',
+    )
+    await owner.getByRole('button', { name: 'Guardar perfil social', exact: true }).click()
+    expect((await saved).status()).toBe(200)
+    await guest.reload()
+    await expect(
+      guest.getByRole('heading', { name: 'Historial QSL compartido por el operador', exact: true }),
+    ).toBeVisible()
+    await expect(
+      guest.getByRole('navigation', { name: 'Paginación de tarjetas QSL', exact: true }),
+    ).toBeVisible()
+    expect((await new AxeBuilder({ page: guest }).analyze()).violations).toEqual([])
+    await login(follower, 'scenario-b@example.test')
+    await follower.goto('/operators/TEST0FULLA')
+    await follower.getByRole('button', { name: 'Seguir', exact: true }).click()
+    await expect(follower.getByText('1 seguidores · 0 seguidos', { exact: true })).toBeVisible()
+    await guest.screenshot({ path: 'test-results/operator-public.png', fullPage: true })
+  } finally {
+    await ownerContext.close().catch(() => {})
+    await followerContext.close().catch(() => {})
+    await guestContext.close().catch(() => {})
+  }
+})
+
+test('registro nuevo exige indicativo y mantiene la titularidad pendiente', async ({ page }) => {
+  await page.goto('/account')
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).click()
+  await page.getByLabel('Nombre', { exact: true }).fill('Usuario ficticio del directorio')
+  await page.getByLabel('Indicativo de radioaficionado', { exact: true }).fill('TEST0WEBREG')
+  await page.getByLabel('Correo electrónico', { exact: true }).fill('web-registration@example.test')
+  await page.getByLabel('Contraseña', { exact: true }).fill('DemoPassword123!')
+  await page.getByLabel('Repetir contraseña', { exact: true }).fill('DemoPassword123!')
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).last().click()
+  await expect(page.getByRole('heading', { name: 'Verifica tu correo', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Abrir mi estación →' })).toHaveCount(0)
+})

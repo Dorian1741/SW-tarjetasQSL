@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Callsign;
+use App\Models\OwnershipRequest;
 use App\Models\Qso;
 use App\Models\QsoMatch;
 use App\Models\User;
@@ -27,6 +28,7 @@ class CallsignService
                 'reviewed_at' => now(),
                 'review_reason' => $reason,
             ]);
+            OwnershipRequest::where('callsign_id', $locked->id)->where('status', 'pending')->update(['status' => $status, 'reviewed_by' => $reviewer->id, 'reviewed_at' => now()]);
             DB::table('callsign_reviews')->insert(['callsign_id' => $locked->id, 'reviewer_id' => $reviewer->id, 'status' => $status, 'reason' => $reason, 'created_at' => now()]);
             if ($status !== 'verified') {
                 $matches = QsoMatch::whereIn('status', ['candidate', 'confirmed'])->where(fn ($q) => $q->whereHas('qsoA', fn ($q) => $q->where('callsign_id', $locked->id))->orWhereHas('qsoB', fn ($q) => $q->where('callsign_id', $locked->id)))->get();

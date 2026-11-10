@@ -19,6 +19,13 @@ const AdminCallsigns = lazy(() =>
   import('./Workspace').then((m) => ({ default: m.AdminCallsigns })),
 )
 
+const Directory = lazy(() => import('./Directory').then((m) => ({ default: m.Directory })))
+const PublicOperator = lazy(() =>
+  import('./Directory').then((m) => ({ default: m.PublicOperator })),
+)
+const MyOperatorProfile = lazy(() =>
+  import('./Directory').then((m) => ({ default: m.MyOperatorProfile })),
+)
 const client = new QueryClient()
 
 function Landing() {
@@ -70,6 +77,9 @@ function Landing() {
         >
           Ingresar o crear cuenta
         </Link>
+        <Link className="text-cyan-300" to="/directory">
+          Explorar el directorio internacional
+        </Link>
       </main>
     </div>
   )
@@ -88,10 +98,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         >
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/directory" element={<Directory />} />
+            <Route path="/operators/*" element={<PublicOperator />} />
             <Route path="/account" element={<Account />} />
             <Route path="/verify/:id" element={<CardDetail publicView />} />
             <Route path="/app" element={<AppLayout />}>
               <Route index element={<Dashboard />} />
+              <Route path="operator-profile" element={<MyOperatorProfile />} />
               <Route path="qsos" element={<QsoHistory />} />
               <Route path="qsos/new" element={<RegisterQso />} />
               <Route path="qsos/:id" element={<QsoDetail />} />

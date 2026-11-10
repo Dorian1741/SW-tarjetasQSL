@@ -15,3 +15,7 @@ La verificación pública usa UUID y consulta el estado actual sin caché; omite
 Los eventos login/logout/fallo se auditan sin credenciales. Las rutas tienen límites generales y los intentos sensibles límites propios. Los correos se envían por jobs con reintentos; failed_jobs conserva la evidencia del fallo. SMTP puede aceptar un mensaje justo antes de un fallo de commit, por lo que una repetición de entrega sigue siendo posible.
 
 Para producción: HTTPS, cookies seguras, APP_DEBUG=false, credenciales propias, dominio/proxy correcto, backups de base y APP_KEY, y supervisión del worker. No regenerar APP_KEY sobre secretos existentes. El checklist de MVP no equivale a despliegue o auditoría exhaustiva de producción.
+
+## Directorio y perfiles
+
+Credenciales y tokens de proveedores permanecen en backend; tokens cacheados cifrados, sin resultados personales persistidos. Perfil e historial son privados por defecto y no se rellenan desde proveedores. Se exige aprobación de titularidad para publicar. Los endpoints de fotos y perfiles vuelven a comprobar visibilidad en cada solicitud. Las fotos aportadas por el usuario se recodifican y pierden metadatos. Evidencia de titularidad solo para propietario/administrador. Ver [callbook.md](callbook.md).

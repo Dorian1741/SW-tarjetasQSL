@@ -255,6 +255,7 @@ export function Account() {
                     key="register"
                     fields={[
                       { name: 'name', label: 'Nombre' },
+                      { name: 'callsign', label: 'Indicativo de radioaficionado' },
                       { name: 'email', label: 'Correo electrónico', type: 'email' },
                       { name: 'password', label: 'Contraseña', type: 'password' },
                       {
@@ -266,6 +267,7 @@ export function Account() {
                     schema={z
                       .object({
                         name: z.string().min(1),
+                        callsign: z.string().trim().min(3).max(32),
                         email,
                         password,
                         password_confirmation: z.string(),

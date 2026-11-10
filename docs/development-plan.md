@@ -73,3 +73,19 @@ Actualizado: 9 de noviembre de 2026 (America/Guayaquil). Ejecución preferida: l
 ## Límites de esta entrega
 
 El MVP funcional no incluye radioclubes, pagos, comprobación automática con registros externos ni un despliegue de producción. El motor serializa escrituras del dominio mediante una fila: es una decisión de simplicidad para el volumen de un MVP. Una carga grande requerirá particionar bloqueos y optimizar la reconciliación. La entrega SMTP tiene semántica al menos una vez: un corte después de aceptar el servidor el mensaje y antes del commit podría repetirlo. La accesibilidad automatizada cubre las páginas indicadas, no todos los casos de asistencia o todos los dispositivos.
+
+## Extensión: directorio internacional y perfiles sociales
+
+- [x] CallbookProvider y adaptadores QRZ XML / HamQTH v2 con credenciales backend.
+- [x] Búsqueda autenticada, normalización compartida, límites, errores y datos mínimos.
+- [x] Registro obligatorio con indicativo único, correo y contraseña; transacción con perfil privado.
+- [x] Correo y TOTP reutilizados; tres estados de confianza separados.
+- [x] Solicitudes privadas de titularidad, revisión administrativa y auditoría existentes integradas.
+- [x] Perfiles optativos, biografía, foto propia, país y enlaces HTTPS.
+- [x] Historial QSL compartido por consentimiento, seguimiento y publicaciones nativas de texto.
+- [x] Pruebas de proveedor inexistente/caído, duplicados y accesos no autorizados.
+- [x] Recorridos de Chrome para registro y perfil público, sin datos externos automáticos.
+
+Pendiente de configuración del servidor: credenciales autorizadas de proveedores y verificación autenticada real. Las pruebas de adaptadores utilizan respuestas controladas. Detalles y alcance inicial en [callbook.md](callbook.md).
+
+Verificación de la extensión: 76 pruebas backend PostgreSQL y cinco recorridos Chrome aprobados; build y formateo correctos. Migración aditiva aplicada localmente sin recrear la base ni modificar `.env`. Los números de la sección inicial de evidencia corresponden al MVP anterior a esta extensión.

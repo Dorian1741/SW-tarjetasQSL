@@ -6,7 +6,7 @@ Prefijo de autenticación `/api/v1/auth` (Fortify):
 
 | Método/ruta | Datos/resultado |
 | --- | --- |
-| POST /register | name, email, password, password_confirmation; 201 y sesión, correo pendiente |
+| POST /register | callsign, email, password, password_confirmation; name opcional; 201 y sesión, correo pendiente |
 | POST /login | email, password; 200, `{ "two_factor": true }` si requiere desafío |
 | POST /two-factor-challenge | code o recovery_code; 204 y sesión autenticada |
 | POST /logout | 204, invalida sesión |
@@ -100,3 +100,7 @@ El Resource incluye además banda, modo, hora y explicación. La segunda firma c
 
 La página pública es `/verify/{uuid}` en el frontend. La API usa el mismo UUID, no un ID secuencial, y no expone datos de cuenta. Los ejemplos usan indicativos artificiales exclusivamente para desarrollo.
 
+
+## Directorio y red social
+
+El registro ahora exige `callsign` además de correo y contraseña. Las nuevas rutas de búsqueda, perfiles, solicitudes, seguimiento y publicaciones están documentadas en [callbook.md](callbook.md). Se reutilizan las rutas de verificación de correo, segundo factor y revisión administrativa descritas arriba.

@@ -20,7 +20,7 @@ class AuthenticationTest extends TestCase
     {
         Notification::fake();
 
-        $this->postJson('/api/v1/auth/register', ['name' => 'Test', 'email' => 'TEST@EXAMPLE.TEST', 'password' => 'StrongPass123!', 'password_confirmation' => 'StrongPass123!'])->assertCreated();
+        $this->postJson('/api/v1/auth/register', ['name' => 'Test', 'callsign' => 'TEST0SIGNUP', 'email' => 'TEST@EXAMPLE.TEST', 'password' => 'StrongPass123!', 'password_confirmation' => 'StrongPass123!'])->assertCreated();
 
         $user = User::where('email', 'test@example.test')->firstOrFail();
         Notification::assertSentTo($user, VerifyEmailQueued::class);

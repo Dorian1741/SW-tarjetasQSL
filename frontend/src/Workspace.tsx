@@ -30,6 +30,7 @@ import {
   utc,
 } from './components/ui'
 import { QsoForm } from './components/QsoForm'
+import { OwnershipEvidence } from './Directory'
 export type Profile = {
   id: number
   name: string
@@ -84,6 +85,8 @@ export type Card = {
 }
 type Page<T> = { data: T[]; meta: { current_page: number; last_page: number } }
 const links = [
+  { to: '/directory', label: 'Directorio internacional', icon: Radio },
+  { to: '/app/operator-profile', label: 'Mi perfil social', icon: UserRound },
   { to: '/app', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/app/qsos', label: 'Contactos QSO', icon: NotebookPen },
   { to: '/app/matches', label: 'Coincidencias', icon: GitCompareArrows },
@@ -842,7 +845,15 @@ export function AdminCallsigns() {
             columns={[
               { label: 'Indicativo', render: (c) => <strong>{c.callsign}</strong> },
               { label: 'Estado', render: (c) => <StatusBadge status={c.verification_status} /> },
-              { label: 'Último motivo', render: (c) => c.review_reason || 'Sin revisión' },
+              {
+                label: 'Último motivo',
+                render: (c) => (
+                  <div>
+                    {c.review_reason || 'Sin revisión'}
+                    <OwnershipEvidence id={c.id} />
+                  </div>
+                ),
+              },
               {
                 label: 'Acciones',
                 render: (c) => (

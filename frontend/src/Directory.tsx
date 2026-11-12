@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { api, mutate } from './api'
@@ -16,6 +16,12 @@ import {
   utc,
 } from './components/ui'
 import type { Callsign, Card } from './Workspace'
+import {
+  PublicHeader,
+  OperatorPreview,
+  usePublicAccount,
+  type OperatorSummary,
+} from './components/PublicHeader'
 
 type Lookup = {
   callsign: string
@@ -49,6 +55,20 @@ const labels: Record<string, string> = {
 }
 
 export function Directory() {
+  const account = usePublicAccount()
+  const [params, setParams] = useSearchParams()
+  const term = params.get('q') || ''
+  const currentPage = Number(params.get('page') || '1')
+  const [publicSearch, setPublicSearch] = useState(term)
+  const operators = useQuery({
+    queryKey: ['public-directory', term, currentPage],
+    queryFn: async () =>
+      (
+        await api.get<{ data: OperatorSummary[]; last_page: number }>('/public/operators', {
+          params: { q: term, page: currentPage },
+        })
+      ).data,
+  })
   const [call, setCall] = useState('')
   const [provider, setProvider] = useState('auto')
   const [result, setResult] = useState<Lookup | null>(null)
@@ -66,104 +86,177 @@ export function Directory() {
     },
   })
   return (
-    <main className="min-h-screen bg-[#080f20] px-6 py-8 text-slate-100">
-      <div className="mx-auto grid max-w-4xl gap-6">
-        <Link to="/" className="text-cyan-300">
-          QSL Nexus
-        </Link>
-        <h1 className="text-3xl font-semibold">Directorio internacional</h1>
-        <p className="text-slate-400">
-          Busca perfiles de QSL Nexus por indicativo. La consulta externa requiere iniciar sesión y
-          verificar tu correo.
-        </p>
-        <section className={panel}>
-          <form
-            className="grid gap-4 sm:grid-cols-2"
-            onSubmit={(e) => {
-              e.preventDefault()
-              search.mutate()
-            }}
-          >
-            <label className="grid gap-2 text-sm">
-              Indicativo
-              <input
-                required
-                maxLength={32}
-                className={input}
-                value={call}
-                onChange={(e) => setCall(e.target.value)}
-              />
-            </label>
-            <label className="grid gap-2 text-sm">
-              Proveedor
-              <select
-                className={input}
-                value={provider}
-                onChange={(e) => setProvider(e.target.value)}
-              >
-                <option value="auto">Automático</option>
-                <option value="qrz">QRZ XML</option>
-                <option value="hamqth">HamQTH v2</option>
-              </select>
-            </label>
-            <button className={button} disabled={search.isPending}>
-              Consultar directorios
-            </button>
-            {call.trim() && (
-              <Link
-                className={secondary}
-                to={`/operators/${encodeURIComponent(call.trim().toUpperCase())}`}
-              >
-                Abrir perfil de QSL Nexus
+    <div className="min-h-screen bg-[#080f20] text-slate-100">
+      <PublicHeader />
+      <main className="px-6 py-8">
+        <div className="mx-auto grid max-w-4xl gap-6">
+          <Link to="/" className="text-cyan-300">
+            QSL Nexus
+          </Link>
+          <h1 className="text-3xl font-semibold">Directorio internacional</h1>
+          <p className="text-slate-400">
+            Descubre estaciones y busca sus perfiles públicos por indicativo, sin iniciar sesión.
+          </p>
+          <section className={panel} aria-labelledby="public-directory-title">
+            <h2 id="public-directory-title" className="mb-4 text-xl font-semibold">
+              Operadores de la comunidad
+            </h2>
+            <form
+              className="flex flex-wrap gap-3"
+              role="search"
+              onSubmit={(event) => {
+                event.preventDefault()
+                setParams(publicSearch.trim() ? { q: publicSearch.trim().toUpperCase() } : {})
+              }}
+            >
+              <label className="min-w-0 flex-1">
+                <span className="sr-only">Buscar perfiles por indicativo</span>
+                <input
+                  className={input}
+                  maxLength={32}
+                  value={publicSearch}
+                  placeholder="Indicativo completo o parcial"
+                  onChange={(event) => setPublicSearch(event.target.value)}
+                />
+              </label>
+              <button className={button}>Buscar perfiles</button>
+            </form>
+            {operators.isPending ? (
+              <LoadingState />
+            ) : operators.isError ? (
+              <ErrorState error={operators.error} retry={() => operators.refetch()} />
+            ) : operators.data.data.length ? (
+              <>
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  {operators.data.data.map((operator) => (
+                    <article
+                      className="min-w-0 rounded-xl border border-slate-800 p-3"
+                      key={operator.callsign}
+                    >
+                      <OperatorPreview operator={operator} />
+                      <p className="mt-3 line-clamp-3 text-sm leading-6 break-words text-slate-400 [overflow-wrap:anywhere]">
+                        {operator.biography || 'Conoce esta estación y sus publicaciones.'}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+                <Pagination
+                  label="Paginación del directorio público"
+                  page={currentPage}
+                  last={operators.data.last_page}
+                  change={(next) => setParams({ ...(term ? { q: term } : {}), page: String(next) })}
+                />
+              </>
+            ) : (
+              <EmptyState>
+                {term
+                  ? 'No se encontraron perfiles públicos con ese indicativo.'
+                  : 'Todavía no hay perfiles públicos en la comunidad.'}
+              </EmptyState>
+            )}
+          </section>
+          <section className={panel}>
+            <h2 className="mb-3 text-xl font-semibold">Consultar QRZ y HamQTH</h2>
+            <p className="mb-5 text-sm text-slate-400">
+              La consulta a proveedores externos requiere una cuenta con correo verificado.
+            </p>
+            {!account.data?.email_verified_at && (
+              <Link to="/account" className="mb-5 inline-block text-cyan-300">
+                Ingresar para consultar proveedores externos
               </Link>
             )}
-          </form>
-          {search.isPending && <LoadingState />}
-          {search.isError && !result && <ErrorState error={search.error} />}{' '}
-          {result && (
-            <div className="mt-6 grid gap-3" role="status">
-              <p>Formato: {result.format_valid ? 'válido' : 'inválido'}</p>
-              <p>Directorio: {labels[result.directory_status] ?? result.directory_status}</p>
-              <p>
-                Titularidad en QSL Nexus:{' '}
-                {result.ownership_verified ? 'verificada administrativamente' : 'no verificada'}
-              </p>
-              {result.result && (
-                <p>
-                  Registro devuelto: {result.result.record.callsign} · País indicado por la fuente:{' '}
-                  {result.result.record.country || 'No disponible'}
-                </p>
+            <form
+              className="grid gap-4 sm:grid-cols-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                search.mutate()
+              }}
+            >
+              <label className="grid gap-2 text-sm">
+                Indicativo
+                <input
+                  required
+                  maxLength={32}
+                  className={input}
+                  value={call}
+                  onChange={(e) => setCall(e.target.value)}
+                />
+              </label>
+              <label className="grid gap-2 text-sm">
+                Proveedor
+                <select
+                  className={input}
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value)}
+                >
+                  <option value="auto">Automático</option>
+                  <option value="qrz">QRZ XML</option>
+                  <option value="hamqth">HamQTH v2</option>
+                </select>
+              </label>
+              <button
+                className={button}
+                disabled={search.isPending || !account.data?.email_verified_at}
+              >
+                Consultar directorios
+              </button>
+              {call.trim() && (
+                <Link
+                  className={secondary}
+                  to={`/operators/${encodeURIComponent(call.trim().toUpperCase())}`}
+                >
+                  Abrir perfil de QSL Nexus
+                </Link>
               )}
-              <p className="text-sm text-slate-400">{result.notice}</p>
-              {result.providers.map((p) => (
-                <p key={p.provider} className="text-sm text-slate-400">
-                  {p.provider}: {labels[p.status] ?? p.status}
+            </form>
+            {search.isPending && <LoadingState />}
+            {search.isError && !result && <ErrorState error={search.error} />}{' '}
+            {result && (
+              <div className="mt-6 grid gap-3" role="status">
+                <p>Formato: {result.format_valid ? 'válido' : 'inválido'}</p>
+                <p>Directorio: {labels[result.directory_status] ?? result.directory_status}</p>
+                <p>
+                  Titularidad en QSL Nexus:{' '}
+                  {result.ownership_verified ? 'verificada administrativamente' : 'no verificada'}
                 </p>
-              ))}
-            </div>
-          )}
-        </section>
-        <p className="text-sm text-slate-400">
-          Consultas externas mediante las API oficiales de{' '}
-          <a href="https://www.qrz.com" rel="noreferrer" className="text-cyan-300">
-            QRZ
-          </a>{' '}
-          y{' '}
-          <a href="https://www.hamqth.com" rel="noreferrer" className="text-cyan-300">
-            HamQTH.com
-          </a>
-          . No se importan sus datos personales a perfiles. Si utilizas HamQTH, puedes registrarte
-          allí y mantener actualizado tu indicativo.
-        </p>
-        <Link to="/account" className="text-cyan-300">
-          Ingresar o crear mi perfil
-        </Link>
-      </div>
-    </main>
+                {result.result && (
+                  <p>
+                    Registro devuelto: {result.result.record.callsign} · País indicado por la
+                    fuente: {result.result.record.country || 'No disponible'}
+                  </p>
+                )}
+                <p className="text-sm text-slate-400">{result.notice}</p>
+                {result.providers.map((p) => (
+                  <p key={p.provider} className="text-sm text-slate-400">
+                    {p.provider}: {labels[p.status] ?? p.status}
+                  </p>
+                ))}
+              </div>
+            )}
+          </section>
+          <p className="text-sm text-slate-400">
+            Consultas externas mediante las API oficiales de{' '}
+            <a href="https://www.qrz.com" rel="noreferrer" className="text-cyan-300 underline">
+              QRZ
+            </a>{' '}
+            y{' '}
+            <a href="https://www.hamqth.com" rel="noreferrer" className="text-cyan-300 underline">
+              HamQTH.com
+            </a>
+            . No se importan sus datos personales a perfiles. Si utilizas HamQTH, puedes registrarte
+            allí y mantener actualizado tu indicativo.
+          </p>
+          <Link to="/account" className="text-cyan-300">
+            Ingresar o crear mi perfil
+          </Link>
+        </div>
+      </main>
+    </div>
   )
 }
 
 export function PublicOperator() {
+  const account = usePublicAccount()
   const params = useParams()
   const call = (params['*'] || '').toUpperCase()
   const encoded = encodeURIComponent(call)
@@ -201,142 +294,157 @@ export function PublicOperator() {
     onSuccess: () => profile.refetch(),
   })
   return (
-    <main className="min-h-screen bg-[#080f20] p-6 text-slate-100">
-      <div className="mx-auto grid max-w-4xl gap-6">
-        <Link to="/directory" className="text-cyan-300">
-          ← Directorio QSL Nexus
-        </Link>
-        {profile.isPending ? (
-          <LoadingState />
-        ) : profile.isError ? (
-          <>
-            <h1 className="text-3xl font-semibold">Perfil no disponible</h1>
-            <p className="text-slate-400">
-              El indicativo puede no tener un perfil público, o su titularidad todavía está en
-              revisión.
-            </p>
-            <ErrorState error={profile.error} />
-          </>
-        ) : (
-          <>
-            <section className={panel}>
-              <div className="flex flex-wrap items-center gap-6">
-                {profile.data.photo_url && (
-                  <img
-                    src={profile.data.photo_url}
-                    alt={`Foto elegida por ${call}`}
-                    className="h-28 w-28 rounded-full object-cover"
-                  />
-                )}
-                <div>
-                  <h1 className="mb-3 text-3xl font-semibold text-cyan-300">
-                    {profile.data.callsign}
-                  </h1>
-                  <StatusBadge status={profile.data.ownership_verified ? 'verified' : 'pending'} />
-                </div>
-              </div>
-              <p className="mt-6 whitespace-pre-wrap text-slate-300">
-                {profile.data.biography || 'Este operador aún no ha añadido una biografía.'}
+    <div className="min-h-screen bg-[#080f20] text-slate-100">
+      <PublicHeader />
+      <main className="p-6">
+        <div className="mx-auto grid max-w-4xl gap-6">
+          <Link to="/directory" className="text-cyan-300">
+            ← Directorio QSL Nexus
+          </Link>
+          {profile.isPending ? (
+            <LoadingState />
+          ) : profile.isError ? (
+            <>
+              <h1 className="text-3xl font-semibold">Perfil no disponible</h1>
+              <p className="text-slate-400">
+                El indicativo puede no tener un perfil público, o su titularidad todavía está en
+                revisión.
               </p>
-              {profile.data.country_code && (
-                <p className="mt-4">País elegido: {profile.data.country_code}</p>
-              )}
-              <div className="mt-5 flex flex-wrap gap-4">
-                {profile.data.links.map((link) => (
-                  <a
-                    key={link.url}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow ugc"
-                    className="text-cyan-300"
-                  >
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-              <p className="mt-5 text-sm text-slate-400">
-                {profile.data.followers} seguidores · {profile.data.following} seguidos
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  className={button}
-                  disabled={follow.isPending}
-                  onClick={() => follow.mutate('put')}
-                >
-                  Seguir
-                </button>
-                <button
-                  className={secondary}
-                  disabled={follow.isPending}
-                  onClick={() => follow.mutate('delete')}
-                >
-                  Dejar de seguir
-                </button>
-              </div>
-              {follow.isError && <ErrorState error={follow.error} />}
-              <p className="mt-4 text-xs text-slate-400">
-                Para seguir perfiles necesitas una cuenta verificada y segundo factor.
-              </p>
-            </section>
-            <section className={panel}>
-              <h2 className="mb-5 text-xl font-semibold">Publicaciones en QSL Nexus</h2>
-              {posts.isPending ? (
-                <LoadingState />
-              ) : posts.isError ? (
-                <ErrorState error={posts.error} />
-              ) : posts.data?.data.length ? (
-                <>
-                  <div className="grid gap-5">
-                    {posts.data.data.map((p) => (
-                      <article key={p.id} className="border-b border-slate-800 pb-5">
-                        <p className="whitespace-pre-wrap">{p.content}</p>
-                        <p className="mt-3 text-xs text-slate-400">{utc(p.created_at)}</p>
-                      </article>
-                    ))}
-                  </div>
-                  <Pagination page={page} last={posts.data.last_page} change={setPage} />
-                </>
-              ) : (
-                <EmptyState>Sin publicaciones.</EmptyState>
-              )}
-            </section>
-            {profile.data.show_qsl_history && (
+              <ErrorState error={profile.error} />
+            </>
+          ) : (
+            <>
               <section className={panel}>
-                <h2 className="mb-5 text-xl font-semibold">
-                  Historial QSL compartido por el operador
-                </h2>
-                {history.isPending ? (
-                  <LoadingState />
-                ) : history.isError ? (
-                  <ErrorState error={history.error} />
-                ) : history.data?.data.length ? (
-                  <>
-                    <ul className="grid gap-4">
-                      {history.data.data.map((card) => (
-                        <li key={card.public_id}>
-                          <Link className="text-cyan-300" to={`/verify/${card.public_id}`}>
-                            {card.callsign_a} / {card.callsign_b} · {card.band} · {card.mode} ·{' '}
-                            {utc(card.started_at)}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                    <Pagination
-                      label="Paginación de tarjetas QSL"
-                      page={historyPage}
-                      last={history.data.meta.last_page}
-                      change={setHistoryPage}
+                <div className="flex flex-wrap items-center gap-6">
+                  {profile.data.photo_url && (
+                    <img
+                      src={profile.data.photo_url}
+                      alt={`Foto elegida por ${call}`}
+                      className="h-28 w-28 rounded-full object-cover"
                     />
+                  )}
+                  <div>
+                    <h1 className="mb-3 text-3xl font-semibold text-cyan-300">
+                      {profile.data.callsign}
+                    </h1>
+                    <StatusBadge
+                      status={profile.data.ownership_verified ? 'verified' : 'pending'}
+                    />
+                  </div>
+                </div>
+                <p className="mt-6 whitespace-pre-wrap text-slate-300">
+                  {profile.data.biography || 'Este operador aún no ha añadido una biografía.'}
+                </p>
+                {profile.data.country_code && (
+                  <p className="mt-4">País elegido: {profile.data.country_code}</p>
+                )}
+                <div className="mt-5 flex flex-wrap gap-4">
+                  {profile.data.links.map((link) => (
+                    <a
+                      key={link.url}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow ugc"
+                      className="text-cyan-300"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+                <p className="mt-5 text-sm text-slate-400">
+                  {profile.data.followers} seguidores · {profile.data.following} seguidos
+                </p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {account.data?.email_verified_at && account.data.two_factor_enabled ? (
+                    <>
+                      <button
+                        className={button}
+                        disabled={follow.isPending}
+                        onClick={() => follow.mutate('put')}
+                      >
+                        Seguir
+                      </button>
+                      <button
+                        className={secondary}
+                        disabled={follow.isPending}
+                        onClick={() => follow.mutate('delete')}
+                      >
+                        Dejar de seguir
+                      </button>
+                    </>
+                  ) : (
+                    <Link to="/account" className={button}>
+                      {account.data
+                        ? 'Completa tu cuenta para seguir'
+                        : 'Inicia sesión para seguir'}
+                    </Link>
+                  )}
+                </div>
+                {follow.isError && <ErrorState error={follow.error} />}
+                <p className="mt-4 text-xs text-slate-400">
+                  Para seguir perfiles necesitas una cuenta verificada y segundo factor.
+                </p>
+              </section>
+              <section className={panel}>
+                <h2 className="mb-5 text-xl font-semibold">Publicaciones en QSL Nexus</h2>
+                {posts.isPending ? (
+                  <LoadingState />
+                ) : posts.isError ? (
+                  <ErrorState error={posts.error} />
+                ) : posts.data?.data.length ? (
+                  <>
+                    <div className="grid gap-5">
+                      {posts.data.data.map((p) => (
+                        <article key={p.id} className="border-b border-slate-800 pb-5">
+                          <p className="whitespace-pre-wrap">{p.content}</p>
+                          <p className="mt-3 text-xs text-slate-400">{utc(p.created_at)}</p>
+                        </article>
+                      ))}
+                    </div>
+                    <Pagination page={page} last={posts.data.last_page} change={setPage} />
                   </>
                 ) : (
-                  <EmptyState>Sin tarjetas emitidas compartidas.</EmptyState>
+                  <EmptyState>Sin publicaciones.</EmptyState>
                 )}
               </section>
-            )}
-          </>
-        )}
-      </div>
-    </main>
+              {profile.data.show_qsl_history && (
+                <section className={panel}>
+                  <h2 className="mb-5 text-xl font-semibold">
+                    Historial QSL compartido por el operador
+                  </h2>
+                  {history.isPending ? (
+                    <LoadingState />
+                  ) : history.isError ? (
+                    <ErrorState error={history.error} />
+                  ) : history.data?.data.length ? (
+                    <>
+                      <ul className="grid gap-4">
+                        {history.data.data.map((card) => (
+                          <li key={card.public_id}>
+                            <Link className="text-cyan-300" to={`/verify/${card.public_id}`}>
+                              {card.callsign_a} / {card.callsign_b} · {card.band} · {card.mode} ·{' '}
+                              {utc(card.started_at)}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                      <Pagination
+                        label="Paginación de tarjetas QSL"
+                        page={historyPage}
+                        last={history.data.meta.last_page}
+                        change={setHistoryPage}
+                      />
+                    </>
+                  ) : (
+                    <EmptyState>Sin tarjetas emitidas compartidas.</EmptyState>
+                  )}
+                </section>
+              )}
+            </>
+          )}
+        </div>
+      </main>
+    </div>
   )
 }
 
@@ -473,16 +581,17 @@ function ProfileEditor({
                 ))}
             </select>
           </label>
-          <label className="grid gap-2 text-sm">
-            Biografía
+          <div className="grid gap-2 text-sm">
+            <label htmlFor="operator-biography">Biografía</label>
             <textarea
+              id="operator-biography"
               className={input}
               rows={5}
               maxLength={3000}
               value={bio}
               onChange={(e) => setBio(e.target.value)}
             />
-          </label>
+          </div>
           <label className="grid gap-2 text-sm">
             País opcional (código de dos letras)
             <input

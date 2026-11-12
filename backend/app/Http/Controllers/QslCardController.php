@@ -23,8 +23,9 @@ class QslCardController extends Controller
     public function store(Request $request, QsoMatch $match, QslService $service): QslCardResource
     {
         Gate::authorize('view', $match);
+        $data = $request->validate(['station_card_id' => ['nullable', 'uuid']]);
 
-        return new QslCardResource($service->issue($request->user(), $match));
+        return new QslCardResource($service->issue($request->user(), $match, $data['station_card_id'] ?? null));
     }
 
     public function show(QslCard $card): QslCardResource

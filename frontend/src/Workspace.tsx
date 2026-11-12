@@ -15,6 +15,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import { api, mutate } from './api'
+import type { StationCardPage } from './cardDesign'
 import {
   LoadingState,
   EmptyState,
@@ -91,6 +92,7 @@ const links = [
   { to: '/app/qsos', label: 'Contactos QSO', icon: NotebookPen },
   { to: '/app/matches', label: 'Coincidencias', icon: GitCompareArrows },
   { to: '/app/cards', label: 'Tarjetas QSL', icon: Image },
+  { to: '/app/card-studio', label: 'Diseñar y subir tarjetas', icon: Image },
   { to: '/app/notifications', label: 'Notificaciones', icon: Bell },
   { to: '/account', label: 'Perfil y seguridad', icon: UserRound },
 ]
@@ -104,7 +106,7 @@ export function Sidebar({ admin, close }: { admin: boolean; close: () => void })
       <nav className="grid gap-2" aria-label="Navegación principal">
         {[
           ...links,
-          ...(admin ? [{ to: '/app/admin', label: 'Revisar indicativos', icon: ShieldCheck }] : []),
+          ...(admin ? [{ to: '/app/admin', label: 'Administración', icon: ShieldCheck }] : []),
         ].map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
@@ -461,6 +463,13 @@ export function QsoDetail() {
 export function Matches() {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('candidate')
+  const [designs, setDesigns] = useState<Record<number, string>>({})
+  const templates = useQuery({ queryKey: ['qsl-design-options'], queryFn: async () => {
+    const result: StationCardPage['data'] = []
+    let current = 1, last = 1
+    do { const response = (await api.get<StationCardPage>('/station-cards', { params: { page: current } })).data; result.push(...response.data); last = response.meta.last_page; current++ } while (current <= last)
+    return result
+  } })
   const client = useQueryClient()
   const navigate = useNavigate()
   const query = useQuery({
@@ -474,7 +483,7 @@ export function Matches() {
     onSuccess: () => client.invalidateQueries(),
   })
   const issue = useMutation({
-    mutationFn: (id: number) => mutate('post', `/matches/${id}/qsl-cards`),
+    mutationFn: (id: number) => mutate('post', `/matches/${id}/qsl-cards`, {station_card_id: designs[id] || null}),
     onSuccess: (response) => {
       client.invalidateQueries()
       navigate(`/app/cards/${response.data.data.public_id}`)
@@ -525,6 +534,7 @@ export function Matches() {
                 {m.other_confirmation ? 'Sí' : 'Pendiente'}
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
+                {m.status === 'confirmed' && <label className="grid w-full max-w-md gap-2 text-sm">Diseño para esta QSL<select className={input} value={designs[m.id] || ''} onChange={(event) => setDesigns({...designs, [m.id]: event.target.value})}><option value="">Diseño predeterminado de QSL Nexus</option>{templates.data?.filter((card) => card.callsign === m.my_callsign).map((card) => <option key={card.public_id} value={card.public_id}>{card.title}</option>)}</select><Link to="/app/card-studio" className="text-xs text-cyan-300">Crear o subir otro diseño</Link></label>}
                 {m.status === 'candidate' && (
                   <>
                     <button
@@ -616,6 +626,14 @@ export function Cards() {
   return (
     <>
       <Title title="Tus tarjetas QSL" />
+      <div className="mb-6 flex flex-wrap gap-3">
+        <Link to="/app/card-studio" className={button}>
+          Diseñar o subir una tarjeta
+        </Link>
+        <Link to="/cards" className={secondary}>
+          Explorar la galería QSL
+        </Link>
+      </div>
       {query.isPending ? (
         <LoadingState />
       ) : query.isError ? (
@@ -770,8 +788,14 @@ export function AdminCallsigns() {
   const [reason, setReason] = useState('')
   const [feedback, setFeedback] = useState('')
   const client = useQueryClient()
+  const profile = useQuery({
+    queryKey: ['profile'],
+    retry: false,
+    queryFn: async () => (await api.get<{ data: Profile }>('/profile')).data.data,
+  })
   const query = useQuery({
     queryKey: ['admin-callsigns', page, status],
+    enabled: Boolean(profile.data?.is_admin),
     retry: false,
     queryFn: async () =>
       (await api.get<Page<Callsign>>('/admin/callsigns', { params: { page, status } })).data,
@@ -791,9 +815,19 @@ export function AdminCallsigns() {
       client.invalidateQueries()
     },
   })
+  if (profile.isPending) return <LoadingState />
+  if (profile.isError) return <ErrorState error={profile.error} />
+  if (!profile.data.is_admin)
+    return (
+      <>
+        <Title title="Administración" />
+        <EmptyState>Tu cuenta no tiene permisos de administrador.</EmptyState>
+      </>
+    )
   return (
     <>
-      <Title title="Revisión de indicativos" />
+      <Title title="Administración" />
+      <h2 className="mb-3 text-xl">Revisión de indicativos</h2>
       <p className="mb-6 text-slate-400">
         Revisa evidencia de titularidad antes de aprobar. El formato no acredita una licencia. No
         puedes revisar tus propios indicativos.

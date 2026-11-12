@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { execFileSync } from 'node:child_process'
+import { createHmac } from 'node:crypto'
 import { backendPath, testEnv } from '../playwright.config'
 function credential(email: string, recovery = false) {
   const script = `require 'vendor/autoload.php'; $app=require 'bootstrap/app.php'; $app->make(Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap(); $user=App\\Models\\User::where('email',$argv[1])->firstOrFail(); echo ${recovery ? '$user->recoveryCodes()[0]' : '(new PragmaRX\\Google2FA\\Google2FA)->getCurrentOtp(Laravel\\Fortify\\Fortify::currentEncrypter()->decrypt($user->two_factor_secret))'};`
@@ -9,6 +10,18 @@ function credential(email: string, recovery = false) {
     env: testEnv,
     encoding: 'utf8',
   }).trim()
+}
+function authenticatorCode(secret: string) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  const bits = [...secret]
+    .map((character) => alphabet.indexOf(character).toString(2).padStart(5, '0'))
+    .join('')
+  const key = Buffer.from(bits.match(/.{8}/g)!.map((byte) => parseInt(byte, 2)))
+  const counter = Buffer.alloc(8)
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)))
+  const digest = createHmac('sha1', key).update(counter).digest()
+  const offset = digest[digest.length - 1] & 15
+  return ((digest.readUInt32BE(offset) & 0x7fffffff) % 1000000).toString().padStart(6, '0')
 }
 async function login(page: Page, email: string) {
   await page.goto('/account')
@@ -92,9 +105,12 @@ test('dos estaciones completan QSO, confirmación bilateral, tarjeta y verificac
     await cb.close().catch(() => {})
   }
 })
-test('landing y cuenta son accesibles y responsive en móvil', async ({ page }) => {
+test('muro público y cuenta son accesibles y responsive en móvil', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'La comunidad, al aire.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Publicaciones de la comunidad' })).toBeVisible()
+  await expect(page.getByText(/DEMOSTRACIÓN · Bienvenidos al muro/)).toBeVisible()
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -103,6 +119,34 @@ test('landing y cuenta son accesibles y responsive en móvil', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'Tu cuenta QSL Nexus' })).toBeVisible()
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
   await page.screenshot({ path: 'test-results/account-mobile.png', fullPage: true })
+})
+
+test('visitantes exploran el muro, buscan estaciones y solo inician sesión al participar', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await expect(page).toHaveURL('http://localhost:15173/')
+  await expect(page.getByRole('heading', { name: 'Publicaciones de la comunidad' })).toBeVisible()
+  await page.screenshot({ path: 'test-results/community-desktop.png', fullPage: true })
+  await page.getByRole('link', { name: 'Ingresar para publicar', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Tu cuenta QSL Nexus' })).toBeVisible()
+  await page.goto('/')
+  await page.getByLabel('Buscar por indicativo', { exact: true }).fill('test0fullb')
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Operadores de la comunidad' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /TEST0FULLB/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /TEST0FULLA/ })).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Consultar directorios', exact: true }),
+  ).toBeDisabled()
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+  await page.getByRole('link', { name: /TEST0FULLB/ }).click()
+  await expect(page.getByRole('heading', { name: 'TEST0FULLB', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Seguir', exact: true })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Inicia sesión para seguir', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Tu cuenta QSL Nexus' })).toBeVisible()
+  await page.goto('/app/qsos/new')
+  await expect(page).toHaveURL('http://localhost:15173/account')
 })
 test('administrador revisa un indicativo y la navegación privada funciona en móvil', async ({
   browser,
@@ -113,12 +157,19 @@ test('administrador revisa un indicativo y la navegación privada funciona en m�
   const admin = await adminContext.newPage()
   try {
     await login(station, 'scenario-a@example.test')
+    await expect(station.getByRole('link', { name: 'Administración', exact: true })).toHaveCount(0)
+    await station.goto('/app/admin')
+    await expect(station.getByText('Tu cuenta no tiene permisos de administrador.')).toBeVisible()
     await station.goto('/account')
+    await expect(station.getByRole('link', { name: 'Abrir administración' })).toHaveCount(0)
     await station.getByLabel('Indicativo', { exact: true }).fill('TEST0REVIEW')
     await station.getByRole('button', { name: 'Reclamar indicativo', exact: true }).click()
     await expect(station.getByText('TEST0REVIEW', { exact: true })).toBeVisible()
     await login(admin, 'scenario-admin@example.test')
-    await admin.goto('/app/admin')
+    await expect(admin.getByRole('link', { name: 'Administración', exact: true })).toBeVisible()
+    await admin.goto('/account')
+    await admin.getByRole('link', { name: 'Abrir administración' }).click()
+    await expect(admin.getByRole('heading', { name: 'Administración', exact: true })).toBeVisible()
     const row = admin.getByRole('row').filter({ hasText: 'TEST0REVIEW' })
     await expect(row).toBeVisible()
     await admin
@@ -224,5 +275,52 @@ test('registro nuevo exige indicativo y mantiene la titularidad pendiente', asyn
   await page.getByLabel('Repetir contraseña', { exact: true }).fill('DemoPassword123!')
   await page.getByRole('button', { name: 'Crear cuenta', exact: true }).last().click()
   await expect(page.getByRole('heading', { name: 'Verifica tu correo', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Abrir mi estación →' })).toHaveCount(0)
+})
+
+test('la clave manual configura TOTP y los datos de configuración se ocultan al activar', async ({
+  page,
+}) => {
+  await page.goto('/account')
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).click()
+  await page.getByLabel('Nombre', { exact: true }).fill('Prueba de autenticador manual')
+  await page.getByLabel('Indicativo de radioaficionado', { exact: true }).fill('TEST0MANUAL')
+  await page.getByLabel('Correo electrónico', { exact: true }).fill('manual-totp@example.test')
+  await page.getByLabel('Contraseña', { exact: true }).fill('DemoPassword123!')
+  await page.getByLabel('Repetir contraseña', { exact: true }).fill('DemoPassword123!')
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).last().click()
+  await expect(page.getByRole('heading', { name: 'Verifica tu correo', exact: true })).toBeVisible()
+  const setup = page
+    .locator('form')
+    .filter({ has: page.getByRole('button', { name: 'Configurar segundo factor', exact: true }) })
+  await setup.getByLabel('Contraseña actual', { exact: true }).fill('DemoPassword123!')
+  await setup.getByRole('button').click()
+  const qr = page.getByAltText('Código QR para configurar el autenticador')
+  await expect(qr).toBeVisible()
+  await expect(page.getByText(/En Microsoft Authenticator pulsa/)).toBeVisible()
+  await page.getByText('¿No puedes escanear? Configurar con clave manual').click()
+  const key = page.getByLabel('Clave de configuración manual', { exact: true })
+  await expect(key).toHaveValue(/^[A-Z2-7]{16,}$/)
+  const secret = await key.inputValue()
+  const qrResponse = await page.request.get('/api/v1/auth/user/two-factor-qr-code')
+  expect(qrResponse.ok()).toBe(true)
+  const enrollment = new URL((await qrResponse.json()).url)
+  expect(enrollment.protocol).toBe('otpauth:')
+  expect(enrollment.hostname).toBe('totp')
+  expect(enrollment.searchParams.get('secret')).toBe(secret)
+  await page.setViewportSize({ width: 360, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await qr.screenshot({ path: 'test-results/authenticator-qr.png' })
+  await page.screenshot({ path: 'test-results/authenticator-setup.png', fullPage: true })
+  const wrongCode = ((Number(authenticatorCode(secret)) + 1) % 1000000).toString().padStart(6, '0')
+  await page.getByLabel('Código de verificación', { exact: true }).fill(wrongCode)
+  await page.getByRole('button', { name: 'Activar segundo factor', exact: true }).click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(qr).toBeVisible()
+  await page.getByLabel('Código de verificación', { exact: true }).fill(authenticatorCode(secret))
+  await page.getByRole('button', { name: 'Activar segundo factor', exact: true }).click()
+  await expect(page.getByText(/Segundo factor activado/)).toBeVisible()
+  await expect(qr).toHaveCount(0)
+  await expect(key).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'Abrir mi estación →' })).toHaveCount(0)
 })

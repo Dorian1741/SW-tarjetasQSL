@@ -11,8 +11,10 @@ use App\Http\Controllers\OperatorProfileController;
 use App\Http\Controllers\OperatorSocialController;
 use App\Http\Controllers\OwnershipRequestController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicCommunityController;
 use App\Http\Controllers\QslCardController;
 use App\Http\Controllers\QsoController;
+use App\Http\Controllers\StationCardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -32,6 +34,13 @@ Route::prefix('api/v1')->middleware(['auth:sanctum', 'throttle:60,1'])->group(fu
 
 Route::get('api/v1/public/qsl-cards/{card:public_id}', [QslCardController::class, 'verify'])->middleware('throttle:60,1')->name('qsl.verify');
 Route::prefix('api/v1')->middleware(['auth:sanctum', 'operational', 'throttle:120,1'])->group(function () {
+    Route::get('station-cards', [StationCardController::class, 'index'])->name('station-cards.index');
+    Route::post('station-cards', [StationCardController::class, 'store'])->name('station-cards.store');
+    Route::get('station-cards/{stationCard:public_id}', [StationCardController::class, 'show'])->name('station-cards.show');
+    Route::put('station-cards/{stationCard:public_id}', [StationCardController::class, 'update'])->name('station-cards.update');
+    Route::patch('station-cards/{stationCard:public_id}/visibility', [StationCardController::class, 'visibility'])->name('station-cards.visibility');
+    Route::delete('station-cards/{stationCard:public_id}', [StationCardController::class, 'destroy'])->name('station-cards.destroy');
+    Route::get('station-cards/{stationCard:public_id}/image', [StationCardController::class, 'image'])->name('station-cards.image');
     Route::patch('callsigns/{callsign}/primary', [CallsignController::class, 'update']);
     Route::get('admin/callsigns', [AdminCallsignController::class, 'index']);
     Route::delete('admin/callsigns/{callsign}/reservation', [AdminCallsignController::class, 'destroy']);
@@ -61,6 +70,10 @@ Route::prefix('api/v1')->middleware(['auth:sanctum', 'operational', 'throttle:60
     Route::get('callsigns/{callsign}/ownership-requests', [OwnershipRequestController::class, 'index']);
 });
 Route::prefix('api/v1/public')->middleware('throttle:60,1')->group(function () {
+    Route::get('station-cards', [StationCardController::class, 'gallery']);
+    Route::get('station-cards/{stationCard:public_id}/image', [StationCardController::class, 'publicImage']);
+    Route::get('community', [PublicCommunityController::class, 'index']);
+    Route::get('operators', [PublicCommunityController::class, 'directory']);
     Route::get('operator-photos/{profile}', [OperatorProfileController::class, 'photo']);
     Route::get('operator-history/{callsign}', [OperatorProfileController::class, 'history'])->where('callsign', '[A-Za-z0-9/]+');
     Route::get('operator-posts/{callsign}', [OperatorSocialController::class, 'posts'])->where('callsign', '[A-Za-z0-9/]+');

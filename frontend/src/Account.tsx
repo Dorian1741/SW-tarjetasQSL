@@ -91,6 +91,7 @@ export function Account() {
   const client = useQueryClient()
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'challenge'>('login')
   const [qr, setQr] = useState('')
+  const [secretKey, setSecretKey] = useState('')
   const [codes, setCodes] = useState<string[]>([])
   const [notice, setNotice] = useState('')
   const [resetDone, setResetDone] = useState(false)
@@ -122,6 +123,7 @@ export function Account() {
     mutationFn: async () => {
       await post('/auth/logout')
       setQr('')
+      setSecretKey('')
       setCodes([])
       setMode('login')
       client.clear()
@@ -303,6 +305,26 @@ export function Account() {
           </section>
         ) : (
           <>
+            {profile.data.is_admin && (
+              <section className={panel} aria-labelledby="admin-access-title">
+                <h2 id="admin-access-title" className="mb-3 text-xl">
+                  Administración
+                </h2>
+                <p className="mb-4 text-slate-400">
+                  Tu cuenta tiene permisos de administrador para revisar evidencias, aprobar o
+                  rechazar indicativos y liberar reservas rechazadas.
+                </p>
+                {profile.data.email_verified_at && profile.data.two_factor_enabled ? (
+                  <Link to="/app/admin" className={`${button} inline-block`}>
+                    Abrir administración
+                  </Link>
+                ) : (
+                  <p className="text-cyan-300">
+                    Verifica tu correo y activa el segundo factor para abrir el panel.
+                  </p>
+                )}
+              </section>
+            )}
             {!profile.data.email_verified_at && (
               <section className={panel}>
                 <h2 className="mb-3 text-xl">Verifica tu correo</h2>
@@ -366,7 +388,12 @@ export function Account() {
                     await post('/auth/user/confirm-password', values)
                     if (!profile.data?.two_factor_enabled) {
                       await post('/auth/user/two-factor-authentication')
-                      setQr((await api.get('/auth/user/two-factor-qr-code')).data.svg)
+                      const [qrResponse, secretResponse] = await Promise.all([
+                        api.get<{ svg: string }>('/auth/user/two-factor-qr-code'),
+                        api.get<{ secretKey: string }>('/auth/user/two-factor-secret-key'),
+                      ])
+                      setQr(qrResponse.data.svg)
+                      setSecretKey(secretResponse.data.secretKey)
                     }
                     setCodes((await api.get('/auth/user/two-factor-recovery-codes')).data)
                   }}
@@ -374,13 +401,53 @@ export function Account() {
               </div>
               {qr && !profile.data.two_factor_enabled && (
                 <div className="mt-6 grid max-w-md gap-4">
-                  <p>Escanea este código en tu autenticador e ingresa el código de seis dígitos.</p>
-                  <img
-                    alt="Código QR para configurar el autenticador"
-                    width="192"
-                    height="192"
-                    src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(qr)}`}
-                  />
+                  <p>
+                    En Microsoft Authenticator pulsa +, elige «Otra cuenta (Google, Facebook, etc.)»
+                    y escanea este QR. Después escribe aquí los seis dígitos que muestra la
+                    aplicación.
+                  </p>
+                  <div className="w-fit max-w-full rounded-lg bg-white p-6">
+                    <img
+                      alt="Código QR para configurar el autenticador"
+                      className="block h-auto max-w-full"
+                      width="224"
+                      height="224"
+                      src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(qr)}`}
+                    />
+                  </div>
+                  {secretKey && (
+                    <details>
+                      <summary className="cursor-pointer text-cyan-300">
+                        ¿No puedes escanear? Configurar con clave manual
+                      </summary>
+                      <div className="mt-3 grid gap-3 text-sm">
+                        <p>
+                          En «Otra cuenta», elige «Escribir código manualmente». Usa el nombre de
+                          cuenta y la clave siguientes, con códigos basados en tiempo (TOTP).
+                        </p>
+                        <p>Nombre de cuenta: QSL Nexus ({profile.data.email})</p>
+                        <label className="grid gap-2">
+                          Clave de configuración manual
+                          <input
+                            className={`${input} font-mono`}
+                            value={secretKey}
+                            readOnly
+                            autoComplete="off"
+                            spellCheck={false}
+                            onFocus={(event) => event.currentTarget.select()}
+                          />
+                        </label>
+                        <p className="text-slate-400">
+                          Esta clave permite generar tus códigos de acceso. Guárdala en tu
+                          autenticador y no la compartas.
+                        </p>
+                      </div>
+                    </details>
+                  )}
+                  <p className="text-sm text-slate-400">
+                    Si se rechaza el código, activa la fecha y hora automáticas del teléfono y
+                    prueba con el siguiente código disponible.
+                  </p>
                   <Form
                     fields={[{ name: 'code', label: 'Código de verificación' }]}
                     schema={z.object({ code: z.string().regex(/^\d{6}$/, 'Ingresa seis dígitos') })}
@@ -388,6 +455,7 @@ export function Account() {
                     submit={async (values) => {
                       await post('/auth/user/confirmed-two-factor-authentication', values)
                       setQr('')
+                      setSecretKey('')
                       await refresh()
                     }}
                   />
@@ -433,6 +501,8 @@ export function Account() {
                       try {
                         await axios.get('/sanctum/csrf-cookie')
                         await api.delete('/auth/user/two-factor-authentication')
+                        setQr('')
+                        setSecretKey('')
                         setCodes([])
                         await refresh()
                       } catch (error) {

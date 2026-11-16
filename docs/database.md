@@ -21,3 +21,7 @@ Las migraciones existentes no se reescribieron para el nuevo dominio. La migraci
 ## Extensión de directorio
 
 `operator_profiles` mantiene un perfil por usuario y una FK compuesta que vincula su indicativo al mismo propietario; la publicación y el historial son optativos. `operator_follows` impide duplicar una relación seguidor/seguido. `operator_posts` conserva exclusivamente contenido local aportado por el autor. `ownership_requests` registra evidencia privada y decisión; un índice parcial impide dos solicitudes pendientes para el mismo indicativo. Los resultados de proveedores externos no tienen tabla de persistencia. Ver [callbook.md](callbook.md).
+
+## Recibos de integración
+
+`integration_credentials` usa UUID y FK compuesta de indicativo/usuario; conserva hash del token, huella de seguridad, permisos, vencimiento, revocación y último uso. `integration_receipts` enlaza un external_id y hash de payload canónico con un QSO. La restricción única conexión/external_id evita reintentos concurrentes duplicados. Rotar mantiene la fila y los recibos; revocar no borra contactos. No se guarda el token en texto plano.

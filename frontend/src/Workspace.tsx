@@ -85,6 +85,7 @@ export type Card = {
 }
 type Page<T> = { data: T[]; meta: { current_page: number; last_page: number } }
 const links = [
+  { to: '/app/integrations', label: 'Integraciones JSON', icon: Radio },
   { to: '/directory', label: 'Directorio internacional', icon: Radio },
   { to: '/app/operator-profile', label: 'Mi perfil social', icon: UserRound },
   { to: '/app', label: 'Dashboard', icon: LayoutDashboard },

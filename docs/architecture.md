@@ -18,3 +18,7 @@ Requests validan entradas; Resources seleccionan datos; Policies limitan lectura
 ## Directorio modular
 
 CallbookProvider separa QRZ XML y HamQTH v2. CallsignLookupService recibe los proveedores etiquetados en el contenedor; CallbookTransport gestiona HTTP, sesiones cifradas, límites y XML seguro. Ninguna dependencia del proveedor llega a React. OperatorProfileService publica únicamente datos elegidos por el titular; las revisiones siguen en CallsignService y las solicitudes privadas completan el flujo existente. Ver [callbook.md](callbook.md).
+
+## Integración con libros de guardia
+
+Un grupo stateless específico autentica IntegrationCredential por Bearer con hash, vencimiento, revocación, permisos y vínculo a indicativo. No se activó HasApiTokens sobre User ni se amplió el acceso de tokens a rutas de la SPA. LogbookIntegrationService normaliza y deduplica recibos dentro de DomainLock y delega en QsoService, conservando matching y confirmación humana existentes. Los endpoints externos se registran fuera del grupo web; la gestión humana conserva sesión/CSRF/2FA y contraseña reciente.

@@ -19,3 +19,9 @@ Para producción: HTTPS, cookies seguras, APP_DEBUG=false, credenciales propias,
 ## Directorio y perfiles
 
 Credenciales y tokens de proveedores permanecen en backend; tokens cacheados cifrados, sin resultados personales persistidos. Perfil e historial son privados por defecto y no se rellenan desde proveedores. Se exige aprobación de titularidad para publicar. Los endpoints de fotos y perfiles vuelven a comprobar visibilidad en cada solicitud. Las fotos aportadas por el usuario se recodifican y pierden metadatos. Evidencia de titularidad solo para propietario/administrador. Ver [callbook.md](callbook.md).
+
+## API externa delegada
+
+Las credenciales de libros de guardia solo habilitan importación/lectura de QSO de un indicativo propio verificado. Se guardan con SHA-256 sobre secretos aleatorios de alta entropía y se muestran una vez. Las rutas externas rechazan cookies como autorización, exigen HTTPS fuera de local/testing y verifican cuenta, correo, 2FA, titularidad, huella de contraseña/secreto, vencimiento y revocación en cada solicitud. No autentican las rutas de la SPA. La gestión humana exige contraseña reciente y se audita sin secretos. Límites y semántica de reintento en [logbook-api.md](logbook-api.md).
+
+La configuración TOTP presenta un QR ampliado con margen blanco para facilitar su lectura sobre el tema oscuro. Existe una clave manual obtenida únicamente después de confirmar contraseña mediante el endpoint protegido de Fortify. Se conserva solo en memoria de la pantalla y se limpia al ocultarla, confirmar 2FA o cerrar sesión; no se persiste en localStorage. Microsoft Authenticator debe configurarse como «Otra cuenta».

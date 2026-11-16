@@ -26,6 +26,7 @@ const PublicOperator = lazy(() =>
 const MyOperatorProfile = lazy(() =>
   import('./Directory').then((m) => ({ default: m.MyOperatorProfile })),
 )
+const Integrations = lazy(() => import('./Integrations').then((m) => ({ default: m.Integrations })))
 const client = new QueryClient()
 
 function Landing() {
@@ -104,6 +105,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/verify/:id" element={<CardDetail publicView />} />
             <Route path="/app" element={<AppLayout />}>
               <Route index element={<Dashboard />} />
+              <Route path="integrations" element={<Integrations />} />
               <Route path="operator-profile" element={<MyOperatorProfile />} />
               <Route path="qsos" element={<QsoHistory />} />
               <Route path="qsos/new" element={<RegisterQso />} />

@@ -89,3 +89,25 @@ El MVP funcional no incluye radioclubes, pagos, comprobación automática con re
 Pendiente de configuración del servidor: credenciales autorizadas de proveedores y verificación autenticada real. Las pruebas de adaptadores utilizan respuestas controladas. Detalles y alcance inicial en [callbook.md](callbook.md).
 
 Verificación de la extensión: 76 pruebas backend PostgreSQL y cinco recorridos Chrome aprobados; build y formateo correctos. Migración aditiva aplicada localmente sin recrear la base ni modificar `.env`. Los números de la sección inicial de evidencia corresponden al MVP anterior a esta extensión.
+
+## Conexión local efectiva a PostgreSQL — 15 de noviembre de 2026
+
+Se corrigió la diferencia entre el motor de pruebas y el entorno activo: `.env` todavía apuntaba a SQLite. Ahora Laravel usa PostgreSQL 18.6 nativo en `127.0.0.1:5433`, base/rol limitado `qsl_nexus`, sin Docker y sin alterar el servidor del sistema en 5432. Se aplicaron las siete migraciones y se trasladaron las filas persistentes existentes: dos usuarios, una sesión y tres eventos de seguridad; los demás módulos estaban vacíos. Se verificaron los recuentos, los hashes de contraseña y los secretos 2FA, y se sincronizaron las secuencias. No se transfirieron las cachés temporales.
+
+Respaldo privado de SQLite y `.env` en `.local/backups/20261115T062749Z/`. El archivo SQLite original y `APP_KEY` se conservaron. La instancia es persistente en `.local/postgres` y se arranca con pg_ctl después de reiniciar el equipo. Backend, frontend y worker se iniciaron con la conexión corregida. No se ejecutó migrate:fresh sobre la base del proyecto.
+
+## Extensión: libro de guardia JSON
+
+- [x] Credenciales limitadas por propietario, indicativo y permisos, con vencimiento, rotación y revocación.
+- [x] Gestión desde la SPA con 2FA y contraseña reciente; token visible una sola vez.
+- [x] Importación JSON reutilizando QsoService y matching, sin auto-confirmación.
+- [x] External_id estable, recibos y hash canónico; conflicto si el mismo ID cambia de contenido.
+- [x] Consulta de estado, firmas y metadatos/enlaces de QSL para contactos de la conexión.
+- [x] Aislamiento de la autenticación de la SPA, cuotas y auditoría.
+- [x] Tres reintentos concurrentes en PostgreSQL producen un QSO y un recibo.
+- [x] Pruebas de scopes, revocación, rotación, expiración, contraseñas, aislamiento y JSON.
+- [x] Guía de integración y contrato OpenAPI 3.1.
+
+Resultado: 87 pruebas backend aprobadas en PostgreSQL (83 en SQLite y cuatro integraciones omitidas allí); cinco recorridos previos de Chrome aprobados y el nuevo recorrido JSON aprobado de forma aislada. Este último verifica credencial, importación, reintento, lectura, revocación y Axe. Build y formateo del frontend aprobados. La migración aditiva se aplicó a PostgreSQL local; no se recreó la base ni se modificó .env. No se realizaron commits.
+
+Pendiente del sistema externo: adaptar su backend al JSON documentado, configurar su URL y una credencial de usuario autorizada, y probar la conexión real entre ambos servidores. No se dispone de su código ni endpoint. Sincronización bidireccional, webhooks, lotes y ADIF quedan fuera de esta primera versión.

@@ -91,6 +91,7 @@ export function Account() {
   const client = useQueryClient()
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'challenge'>('login')
   const [qr, setQr] = useState('')
+  const [manualSecret, setManualSecret] = useState('')
   const [codes, setCodes] = useState<string[]>([])
   const [notice, setNotice] = useState('')
   const [resetDone, setResetDone] = useState(false)
@@ -122,6 +123,7 @@ export function Account() {
     mutationFn: async () => {
       await post('/auth/logout')
       setQr('')
+      setManualSecret('')
       setCodes([])
       setMode('login')
       client.clear()
@@ -365,6 +367,7 @@ export function Account() {
                   submit={async (values) => {
                     await post('/auth/user/confirm-password', values)
                     if (!profile.data?.two_factor_enabled) {
+                      setManualSecret('')
                       await post('/auth/user/two-factor-authentication')
                       setQr((await api.get('/auth/user/two-factor-qr-code')).data.svg)
                     }
@@ -374,13 +377,53 @@ export function Account() {
               </div>
               {qr && !profile.data.two_factor_enabled && (
                 <div className="mt-6 grid max-w-md gap-4">
-                  <p>Escanea este código en tu autenticador e ingresa el código de seis dígitos.</p>
-                  <img
-                    alt="Código QR para configurar el autenticador"
-                    width="192"
-                    height="192"
-                    src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(qr)}`}
-                  />
+                  <p>En Microsoft Authenticator elige + → Otra cuenta y escanea este código.</p>
+                  <div className="w-fit rounded-lg bg-white p-5">
+                    <img
+                      alt="Código QR para configurar el autenticador"
+                      width="256"
+                      height="256"
+                      className="block h-64 w-64"
+                      src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(qr)}`}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="w-fit text-left text-cyan-300 underline"
+                    onClick={async () => {
+                      if (manualSecret) {
+                        setManualSecret('')
+                        return
+                      }
+                      try {
+                        setManualSecret(
+                          (await api.get('/auth/user/two-factor-secret-key')).data.secretKey,
+                        )
+                      } catch (error) {
+                        setNotice(errorMessage(error))
+                      }
+                    }}
+                  >
+                    {manualSecret
+                      ? 'Ocultar clave de configuración'
+                      : 'No puedo escanear: mostrar clave manual'}
+                  </button>
+                  {manualSecret && (
+                    <div className="grid gap-3 rounded-lg border border-slate-700 bg-slate-950 p-4">
+                      <p className="text-sm">
+                        En Authenticator selecciona Otra cuenta → Introducir código manualmente.
+                      </p>
+                      <p className="text-sm">Nombre de cuenta: QSL Nexus ({profile.data.email})</p>
+                      <p className="text-sm">Clave secreta de configuración:</p>
+                      <code className="select-all break-all font-mono text-cyan-300">
+                        {manualSecret}
+                      </code>
+                      <p className="text-sm text-slate-400">
+                        Esta clave es privada. No es un código de recuperación. Después introduce
+                        aquí los seis dígitos generados por la aplicación.
+                      </p>
+                    </div>
+                  )}
                   <Form
                     fields={[{ name: 'code', label: 'Código de verificación' }]}
                     schema={z.object({ code: z.string().regex(/^\d{6}$/, 'Ingresa seis dígitos') })}
@@ -388,6 +431,7 @@ export function Account() {
                     submit={async (values) => {
                       await post('/auth/user/confirmed-two-factor-authentication', values)
                       setQr('')
+                      setManualSecret('')
                       await refresh()
                     }}
                   />

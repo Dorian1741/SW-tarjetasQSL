@@ -5,6 +5,7 @@ use App\Http\Controllers\CallsignController;
 use App\Http\Controllers\CallsignLookupController;
 use App\Http\Controllers\CallsignReviewController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\IntegrationCredentialController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OperatorProfileController;
@@ -65,4 +66,13 @@ Route::prefix('api/v1/public')->middleware('throttle:60,1')->group(function () {
     Route::get('operator-history/{callsign}', [OperatorProfileController::class, 'history'])->where('callsign', '[A-Za-z0-9/]+');
     Route::get('operator-posts/{callsign}', [OperatorSocialController::class, 'posts'])->where('callsign', '[A-Za-z0-9/]+');
     Route::get('operators/{callsign}', [OperatorProfileController::class, 'show'])->where('callsign', '[A-Za-z0-9/]+');
+});
+
+Route::prefix('api/v1/integration-credentials')->middleware(['auth:sanctum', 'operational', 'throttle:30,1'])->group(function () {
+    Route::get('/', [IntegrationCredentialController::class, 'index']);
+    Route::middleware('password.confirm')->group(function () {
+        Route::post('/', [IntegrationCredentialController::class, 'store']);
+        Route::post('{credential}/rotate', [IntegrationCredentialController::class, 'rotate'])->whereUuid('credential');
+        Route::delete('{credential}', [IntegrationCredentialController::class, 'destroy'])->whereUuid('credential');
+    });
 });

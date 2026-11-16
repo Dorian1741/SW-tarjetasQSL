@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Callsign;
+use App\Models\IntegrationCredential;
 use App\Models\QsoMatch;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
@@ -49,7 +50,7 @@ class ConcurrencyTest extends TestCase
             $results[] = json_decode($p->getOutput(), true, 512, JSON_THROW_ON_ERROR)['result'];
         }
 
-return $results;
+        return $results;
     }
 
     public function test_concurrent_qsos_confirmations_and_cards_remain_unique(): void
@@ -71,6 +72,21 @@ return $results;
         $this->assertDatabaseCount('qsl_cards', 1);
     }
 
+    public function test_concurrent_import_retries_create_one_qso_and_one_receipt(): void
+    {
+        $claim = Callsign::factory()->create(['verification_status' => 'verified']);
+        $user = $claim->user;
+        app(EnableTwoFactorAuthentication::class)($user);
+        $user->forceFill(['two_factor_confirmed_at' => now()])->save();
+        $credential = IntegrationCredential::create(['user_id' => $user->id, 'callsign_id' => $claim->id, 'name' => 'Concurrency', 'abilities' => ['qsos:write'], 'token_hash' => str_repeat('a', 64), 'security_fingerprint' => IntegrationCredential::fingerprint($user), 'expires_at' => now()->addDay()]);
+        $data = ['credential' => $credential->id, 'payload' => ['callsign_id' => $claim->id, 'external_id' => 'same-reference', 'contacted_callsign' => 'TEST0REMOTE', 'frequency_khz' => '14074.125', 'band' => '20m', 'mode' => 'FT8', 'started_at' => '2026-01-01T12:00:00Z']];
+        $ids = $this->concurrent('integration', [$data, $data, $data]);
+        $this->assertSame($ids[0], $ids[1]);
+        $this->assertSame($ids[0], $ids[2]);
+        $this->assertDatabaseCount('qsos', 1);
+        $this->assertDatabaseCount('integration_receipts', 1);
+    }
+
     public function test_two_sessions_cannot_consume_the_same_recovery_code(): void
     {
         $user = User::factory()->create();
@@ -79,6 +95,6 @@ return $results;
         $data = ['user' => $user->id, 'code' => $user->recoveryCodes()[0]];
         $results = $this->concurrent('recover', [$data, $data]);
         sort($results);
-        $this->assertSame([false, true],$results);
+        $this->assertSame([false, true], $results);
     }
 }

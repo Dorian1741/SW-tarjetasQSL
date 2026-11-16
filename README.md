@@ -12,6 +12,20 @@ Requisitos: PHP 8.5 (versión verificada con el lock actual) con pdo_pgsql, mbst
 
 ### PostgreSQL local
 
+**Estado de esta copia local (15 de noviembre de 2026):** Laravel está conectado a la instancia nativa del proyecto en `127.0.0.1:5433`, base y rol de aplicación `qsl_nexus`. Se utiliza 5433 para no modificar el PostgreSQL del sistema en 5432. La contraseña está en `backend/.env`; el rol de aplicación no tiene privilegios administrativos. La instancia ya está inicializada: no repetir `initdb` ni `createdb` en esta copia.
+
+Después de reiniciar el equipo, arrancarla desde la raíz antes del backend y del worker:
+
+```sh
+pg_ctl -D .local/postgres -l .local/postgres.log start
+# Para detener solo esta instancia:
+pg_ctl -D .local/postgres stop -m fast
+```
+
+La configuración de puerto/socket está persistida en `.local/postgres/postgresql.conf`. No se ha instalado un servicio del sistema. Los respaldos anteriores de SQLite y `.env` están en `.local/backups/`, con permisos privados; la base SQLite original también se conserva. `APP_KEY` no cambió, para mantener las contraseñas, sesiones y secretos existentes.
+
+**En otra instalación nueva**, utiliza las instrucciones siguientes y configura `DB_PORT` con el puerto que elijas (5432 es el valor habitual; esta copia usa 5433).
+
 Si ya tienes un servidor PostgreSQL, crea una base `qsl_nexus` y un usuario con permisos sobre ella, y usa sus credenciales en el backend.
 
 Si tienes los binarios PostgreSQL pero todavía no tienes un servidor configurado, puedes crear una instancia de desarrollo sin permisos de administrador. Desde la raíz del proyecto, **solo para una instancia nueva**:
@@ -134,7 +148,7 @@ Estas pruebas recrean el esquema y nunca deben apuntar a una base con datos real
 
 Playwright usa Chrome instalado en `/usr/bin/google-chrome` o el ejecutable indicado por `CHROME_BINARY`. Arranca servidores aislados en puertos 18000 y 15173 y recrea únicamente `.local/qsl-browser-test.sqlite`. Sus imágenes se guardan en `.local/browser-files`; no usa la base configurada en tu `.env`. Verifica el recorrido de dos estaciones, administración, menú móvil y accesibilidad con Axe. Capturas y trazas quedan en `frontend/test-results/`.
 
-Verificación realizada: 76 pruebas de backend aprobadas en PostgreSQL, 5 recorridos de navegador aprobados y build del frontend aprobado. Axe no encontró infracciones en las páginas evaluadas; esto no sustituye una auditoría de accesibilidad exhaustiva.
+Verificación realizada: 87 pruebas de backend aprobadas en PostgreSQL; cinco recorridos de regresión de navegador y el nuevo recorrido JSON aprobados y build del frontend aprobado. Axe no encontró infracciones en las páginas evaluadas; esto no sustituye una auditoría de accesibilidad exhaustiva.
 
 ## Correo y archivos
 
@@ -153,3 +167,11 @@ Nuevo módulo en `/directory` y `/app/operator-profile`, con páginas públicas 
 QRZ XML y HamQTH v2 requieren habilitar sus credenciales **solo en el backend**. Sin configuración, la búsqueda informa proveedor no disponible. Se comprobaron los adaptadores con respuestas controladas; no se realizaron consultas autenticadas reales sin credenciales. No se importan nombres, correos, fotos ni biografías externas.
 
 Aplicar la nueva migración con `cd backend && php artisan migrate`, sin recrear la base. Las cuentas anteriores se conservan. Consulta [configuración, API, privacidad y pruebas del módulo](docs/callbook.md).
+
+## API JSON para libros de guardia
+
+En `/app/integrations` el titular de una cuenta operativa puede autorizar un libro de guardia por indicativo. Se generan credenciales revocables y con vencimiento, visibles una sola vez. El sistema externo puede importar un QSO JSON por solicitud y consultar su confirmación/tarjetas por `external_id`. Reintentar la misma referencia no duplica contactos; rotar la credencial conserva los recibos.
+
+La integración no confirma ni emite QSL automáticamente. Las credenciales se guardan exclusivamente en el backend del libro de guardia y no dan acceso a la SPA. Fuera de local/testing se exige HTTPS.
+
+Para tu amigo: [guía y ejemplo JSON](docs/logbook-api.md) y [contrato OpenAPI](docs/openapi-logbook.yaml). Su backend debe implementar ese contrato; no es una conexión ya probada con su programa concreto. La nueva migración añade tablas de credenciales/recibos sin recrear datos existentes.

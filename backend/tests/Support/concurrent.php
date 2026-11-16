@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\TwoFactorSessionController;
+use App\Models\IntegrationCredential;
 use App\Models\QsoMatch;
 use App\Models\User;
+use App\Services\LogbookIntegrationService;
 use App\Services\QslService;
 use App\Services\QsoMatchingService;
 use App\Services\QsoService;
@@ -22,6 +24,9 @@ try {
         $result = app(QsoMatchingService::class)->decide(User::findOrFail($data['user']), QsoMatch::findOrFail($data['match']), 'confirm')->status;
     } elseif ($action === 'issue') {
         $result = app(QslService::class)->issue(User::findOrFail($data['user']), QsoMatch::findOrFail($data['match']))->public_id;
+    } elseif ($action === 'integration') {
+        [$receipt] = app(LogbookIntegrationService::class)->import(IntegrationCredential::findOrFail($data['credential']), $data['payload']);
+        $result = $receipt->qso_id;
     } elseif ($action === 'recover') {
         $request = TwoFactorLoginRequest::create('/api/v1/auth/two-factor-challenge', 'POST', ['recovery_code' => $data['code']], [], [], ['HTTP_ACCEPT' => 'application/json']);
         $request->setContainer($app);

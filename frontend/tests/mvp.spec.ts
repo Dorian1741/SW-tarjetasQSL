@@ -2,6 +2,10 @@ import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { execFileSync } from 'node:child_process'
 import { backendPath, testEnv } from '../playwright.config'
+// Cada caso conserva datos de escenario, pero su cuota de solicitudes es independiente.
+test.beforeEach(() => {
+  execFileSync('php', ['artisan', 'cache:clear'], { cwd: backendPath, env: testEnv, stdio: 'pipe' })
+})
 function credential(email: string, recovery = false) {
   const script = `require 'vendor/autoload.php'; $app=require 'bootstrap/app.php'; $app->make(Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap(); $user=App\\Models\\User::where('email',$argv[1])->firstOrFail(); echo ${recovery ? '$user->recoveryCodes()[0]' : '(new PragmaRX\\Google2FA\\Google2FA)->getCurrentOtp(Laravel\\Fortify\\Fortify::currentEncrypter()->decrypt($user->two_factor_secret))'};`
   return execFileSync('php', ['-r', script, email], {
@@ -27,6 +31,14 @@ async function login(page: Page, email: string) {
     await setup.getByLabel('Contraseña actual', { exact: true }).fill('DemoPassword123!')
     await setup.getByRole('button').click()
     await expect(page.getByAltText('Código QR para configurar el autenticador')).toBeVisible()
+    await expect(
+      page.getByAltText('Código QR para configurar el autenticador').locator('..'),
+    ).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+    await page
+      .getByRole('button', { name: 'No puedo escanear: mostrar clave manual', exact: true })
+      .click()
+    await expect(page.getByText('Clave secreta de configuración:', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Ocultar clave de configuración', exact: true }).click()
     await page.getByLabel('Código de verificación', { exact: true }).fill(credential(email))
     await page.getByRole('button', { name: 'Activar segundo factor', exact: true }).click()
   }
@@ -225,4 +237,59 @@ test('registro nuevo exige indicativo y mantiene la titularidad pendiente', asyn
   await page.getByRole('button', { name: 'Crear cuenta', exact: true }).last().click()
   await expect(page.getByRole('heading', { name: 'Verifica tu correo', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Abrir mi estación →' })).toHaveCount(0)
+})
+test('libro de guardia JSON importa sin duplicar y permite revocar su credencial', async ({
+  page,
+}) => {
+  await login(page, 'scenario-a@example.test')
+  await page.goto('/app/integrations')
+  await expect(page.getByRole('heading', { name: 'Conectar un libro de guardia' })).toBeVisible()
+  await page.getByLabel('Contraseña actual', { exact: true }).fill('DemoPassword123!')
+  await page.getByRole('button', { name: 'Autorizar gestión de conexiones', exact: true }).click()
+  await expect(
+    page.getByText('Identidad confirmada. Puedes crear, rotar o revocar credenciales.', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await page
+    .getByRole('combobox', { name: 'Indicativo autorizado', exact: true })
+    .selectOption({ label: 'TEST0FULLA' })
+  await page.getByRole('button', { name: 'Crear credencial', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: 'Credencial Bearer', exact: true })).toBeVisible()
+  const token = await page
+    .getByRole('textbox', { name: 'Credencial Bearer', exact: true })
+    .inputValue()
+  const payload = {
+    external_id: 'browser-json-1',
+    contacted_callsign: 'TEST0EXTB',
+    frequency_khz: '14074.125',
+    band: '20m',
+    mode: 'FT8',
+    started_at: '2026-01-01T15:00:00Z',
+  }
+  const first = await page.request.post('/api/v1/integrations/qsos', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: payload,
+  })
+  expect(first.status()).toBe(201)
+  const replay = await page.request.post('/api/v1/integrations/qsos', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: payload,
+  })
+  expect(replay.status()).toBe(200)
+  expect((await replay.json()).replayed).toBe(true)
+  const status = await page.request.get('/api/v1/integrations/qsos/browser-json-1', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  expect(status.status()).toBe(200)
+  expect((await status.json()).data.qso.status).toBe('pending')
+  await page.getByRole('button', { name: 'Ya la guardé: ocultar', exact: true }).click()
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Revocar acceso', exact: true }).click()
+  await expect(page.getByText(/Revocada · Último uso:/)).toBeVisible()
+  const revoked = await page.request.get('/api/v1/integrations/qsos/browser-json-1', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  expect(revoked.status()).toBe(401)
 })

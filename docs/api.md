@@ -104,3 +104,7 @@ La página pública es `/verify/{uuid}` en el frontend. La API usa el mismo UUID
 ## Directorio y red social
 
 El registro ahora exige `callsign` además de correo y contraseña. Las nuevas rutas de búsqueda, perfiles, solicitudes, seguimiento y publicaciones están documentadas en [callbook.md](callbook.md). Se reutilizan las rutas de verificación de correo, segundo factor y revisión administrativa descritas arriba.
+
+## API externa de libro de guardia
+
+`/api/v1/integrations/qsos` recibe JSON por Bearer delegado (sin cookies). Admite importación idempotente, listado de referencias y consulta por external_id. La gestión de credenciales se realiza mediante sesión operativa y contraseña reciente en `/api/v1/integration-credentials`. Consultar [guía](logbook-api.md) y [OpenAPI](openapi-logbook.yaml) para permisos, formatos, límites y errores.

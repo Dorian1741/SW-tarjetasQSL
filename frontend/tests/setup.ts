@@ -15,4 +15,9 @@ export default async function setup() {
     ['artisan', 'db:seed', '--class=DemoScenarioSeeder', '--force', '--no-interaction'],
     { cwd: backendPath, env: testEnv, stdio: 'pipe' },
   )
+  execFileSync(
+    'php',
+    ['artisan', 'db:seed', '--class=PublicCommunityDemoSeeder', '--force', '--no-interaction'],
+    { cwd: backendPath, env: testEnv, stdio: 'pipe' },
+  )
 }

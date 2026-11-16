@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class QslCard extends Model
 {
-    protected $fillable = ['public_id', 'qso_match_id', 'sender_user_id', 'receiver_user_id', 'template', 'file_path', 'status', 'generated_at', 'sent_at'];
+    protected $fillable = ['public_id', 'qso_match_id', 'sender_user_id', 'receiver_user_id', 'template', 'station_card_id', 'file_path', 'status', 'generated_at', 'sent_at'];
 
     protected function casts(): array
     {
@@ -30,5 +30,10 @@ class QslCard extends Model
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'receiver_user_id');
+    }
+
+    public function stationDesign(): BelongsTo
+    {
+        return $this->belongsTo(StationCard::class, 'station_card_id');
     }
 }

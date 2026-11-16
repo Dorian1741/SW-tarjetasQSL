@@ -13,4 +13,9 @@ class OperatorPost extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(OperatorProfile::class, 'user_id', 'user_id');
+    }
 }

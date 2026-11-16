@@ -305,6 +305,26 @@ export function Account() {
           </section>
         ) : (
           <>
+            {profile.data.is_admin && (
+              <section className={panel} aria-labelledby="admin-access-title">
+                <h2 id="admin-access-title" className="mb-3 text-xl">
+                  Administración
+                </h2>
+                <p className="mb-4 text-slate-400">
+                  Tu cuenta tiene permisos de administrador para revisar evidencias, aprobar o
+                  rechazar indicativos y liberar reservas rechazadas.
+                </p>
+                {profile.data.email_verified_at && profile.data.two_factor_enabled ? (
+                  <Link to="/app/admin" className={`${button} inline-block`}>
+                    Abrir administración
+                  </Link>
+                ) : (
+                  <p className="text-cyan-300">
+                    Verifica tu correo y activa el segundo factor para abrir el panel.
+                  </p>
+                )}
+              </section>
+            )}
             {!profile.data.email_verified_at && (
               <section className={panel}>
                 <h2 className="mb-3 text-xl">Verifica tu correo</h2>
@@ -369,7 +389,9 @@ export function Account() {
                     if (!profile.data?.two_factor_enabled) {
                       setManualSecret('')
                       await post('/auth/user/two-factor-authentication')
-                      setQr((await api.get('/auth/user/two-factor-qr-code')).data.svg)
+                      setQr(
+                        (await api.get<{ svg: string }>('/auth/user/two-factor-qr-code')).data.svg,
+                      )
                     }
                     setCodes((await api.get('/auth/user/two-factor-recovery-codes')).data)
                   }}
@@ -377,13 +399,15 @@ export function Account() {
               </div>
               {qr && !profile.data.two_factor_enabled && (
                 <div className="mt-6 grid max-w-md gap-4">
-                  <p>En Microsoft Authenticator elige + → Otra cuenta y escanea este código.</p>
-                  <div className="w-fit rounded-lg bg-white p-5">
+                  <p>
+                    En Microsoft Authenticator pulsa +, elige Otra cuenta y escanea este código.
+                  </p>
+                  <div className="w-fit max-w-full rounded-lg bg-white p-5">
                     <img
                       alt="Código QR para configurar el autenticador"
                       width="256"
                       height="256"
-                      className="block h-64 w-64"
+                      className="block h-auto max-w-full"
                       src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(qr)}`}
                     />
                   </div>
@@ -415,15 +439,27 @@ export function Account() {
                       </p>
                       <p className="text-sm">Nombre de cuenta: QSL Nexus ({profile.data.email})</p>
                       <p className="text-sm">Clave secreta de configuración:</p>
-                      <code className="select-all break-all font-mono text-cyan-300">
-                        {manualSecret}
-                      </code>
+                      <label className="grid gap-2 text-sm">
+                        Clave de configuración manual
+                        <input
+                          className={`${input} font-mono`}
+                          value={manualSecret}
+                          readOnly
+                          autoComplete="off"
+                          spellCheck={false}
+                          onFocus={(event) => event.currentTarget.select()}
+                        />
+                      </label>
                       <p className="text-sm text-slate-400">
                         Esta clave es privada. No es un código de recuperación. Después introduce
                         aquí los seis dígitos generados por la aplicación.
                       </p>
                     </div>
                   )}
+                  <p className="text-sm text-slate-400">
+                    Si el código se rechaza, activa la fecha y hora automáticas del teléfono y
+                    prueba con el siguiente código disponible.
+                  </p>
                   <Form
                     fields={[{ name: 'code', label: 'Código de verificación' }]}
                     schema={z.object({ code: z.string().regex(/^\d{6}$/, 'Ingresa seis dígitos') })}
@@ -477,6 +513,8 @@ export function Account() {
                       try {
                         await axios.get('/sanctum/csrf-cookie')
                         await api.delete('/auth/user/two-factor-authentication')
+                        setQr('')
+                        setManualSecret('')
                         setCodes([])
                         await refresh()
                       } catch (error) {

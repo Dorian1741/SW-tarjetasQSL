@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -27,5 +29,13 @@ class OperatorProfile extends Model
     public function isVisible(): bool
     {
         return $this->is_public && $this->user->status === 'active' && $this->user->hasVerifiedEmail() && $this->callsign->reserved_callsign !== null && $this->callsign->verification_status === 'verified';
+    }
+
+    #[Scope]
+    protected function visible(Builder $query): Builder
+    {
+        return $query->where('is_public', true)
+            ->whereHas('user', fn (Builder $user) => $user->where('status', 'active')->whereNotNull('email_verified_at'))
+            ->whereHas('callsign', fn (Builder $callsign) => $callsign->whereNotNull('reserved_callsign')->where('verification_status', 'verified'));
     }
 }
